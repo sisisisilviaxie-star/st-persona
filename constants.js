@@ -4,7 +4,7 @@
 // ============================================================================
 
 export const extensionName = "st-persona-weaver";
-export const CURRENT_VERSION = "2.2.5"; // Smart Keywords for All
+export const CURRENT_VERSION = "2.2.6"; // Smart Keywords for All
 
 export const UPDATE_CHECK_URL = "https://raw.githubusercontent.com/sssilvia27/st-persona-weaver/main/manifest.json";
 
