@@ -15,6 +15,7 @@ const {
     extensionName, CURRENT_VERSION, BUTTON_ID, HISTORY_PER_PAGE,
     STORAGE_KEY_HISTORY, STORAGE_KEY_STATE, STORAGE_KEY_TEMPLATE, STORAGE_KEY_PROMPTS,
     STORAGE_KEY_WI_STATE, STORAGE_KEY_UI_STATE, STORAGE_KEY_THEMES, STORAGE_KEY_DATA_USER, STORAGE_KEY_DATA_NPC,
+    STORAGE_KEY_API_PROFILES,
     defaultYamlTemplate, defaultNpcTemplate,
     defaultTemplateGenPrompt, defaultNpcTemplateGenPrompt, defaultPersonaGenPrompt, defaultNpcGenPrompt, fallbackSystemPrompt,
     TEXT, defaultSettings
@@ -34,9 +35,10 @@ let lastRawResponse = "";
 let isProcessing = false;
 let currentGreetingsList =[]; 
 let wiSelectionCache = {};
-let uiStateCache = { templateExpanded: true, theme: 'style.css', generationMode: 'user', generationPreset: 'current' }; 
+let uiStateCache = { templateExpanded: true, theme: 'style.css', generationMode: 'user', generationPreset: 'current', activeApiProfileId: '' }; 
 let hasNewVersion = false;
 let customThemes = {}; 
+let apiProfilesCache = [];
 let historyPage = 1; 
 let lastRefineRequest = ""; 
 
@@ -68,8 +70,9 @@ function loadData() {
         if(p) promptsCache = { ...promptsCache, ...p };
     } catch {}
     try { wiSelectionCache = JSON.parse(localStorage.getItem(STORAGE_KEY_WI_STATE)) || {}; } catch { wiSelectionCache = {}; }
-    try { uiStateCache = JSON.parse(localStorage.getItem(STORAGE_KEY_UI_STATE)) || { templateExpanded: true, theme: 'style.css', generationMode: 'user', generationPreset: 'current' }; } catch {}
+    try { uiStateCache = JSON.parse(localStorage.getItem(STORAGE_KEY_UI_STATE)) || { templateExpanded: true, theme: 'style.css', generationMode: 'user', generationPreset: 'current', activeApiProfileId: '' }; } catch {}
     try { customThemes = JSON.parse(localStorage.getItem(STORAGE_KEY_THEMES)) || {}; } catch {}
+    try { apiProfilesCache = JSON.parse(localStorage.getItem(STORAGE_KEY_API_PROFILES)) || []; } catch { apiProfilesCache = []; }
     
     try {
         const u = JSON.parse(localStorage.getItem(STORAGE_KEY_DATA_USER));
@@ -85,6 +88,7 @@ function saveData() {
     safeLocalStorageSet(STORAGE_KEY_PROMPTS, JSON.stringify(promptsCache));
     safeLocalStorageSet(STORAGE_KEY_UI_STATE, JSON.stringify(uiStateCache));
     safeLocalStorageSet(STORAGE_KEY_THEMES, JSON.stringify(customThemes));
+    safeLocalStorageSet(STORAGE_KEY_API_PROFILES, JSON.stringify(apiProfilesCache));
     safeLocalStorageSet(STORAGE_KEY_DATA_USER, JSON.stringify(userContext));
     safeLocalStorageSet(STORAGE_KEY_DATA_NPC, JSON.stringify(npcContext));
 }
@@ -191,16 +195,26 @@ async function openCreatorPopup() {
         });
     }
 
+    const apiProfilesOptionsHtml = apiProfilesCache.map(p =>
+        `<option value="${p.id}" ${p.id === uiStateCache.activeApiProfileId ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+
     const html = UI.getCreatorPopupHtml({
         headerTitle, currentName, activeData, config, presetOptionsHtml,
         initialHint: API.getPresetHintText(uiStateCache.generationPreset),
         updateUiHtml: `<div id="pw-update-container"><div style="margin-top:10px; opacity:0.6; font-size:0.9em;"><i class="fas fa-spinner fa-spin"></i> 正在检查更新...</div></div>`,
         chipsIcon: uiStateCache.templateExpanded ? 'fa-angle-up' : 'fa-angle-down',
         chipsDisplay: uiStateCache.templateExpanded ? 'flex' : 'none',
-        isNpc
+        isNpc,
+        apiProfilesOptionsHtml
     });
 
     callPopup(html, 'text', '', { wide: true, large: true, okButton: "Close" });
+
+    if (uiStateCache.activeApiProfileId) {
+        $('#pw-api-profile-delete').show();
+        $('#pw-api-profile-save').html('<i class="fa-solid fa-save"></i> 更新配置');
+    }
 
     updatePromise.then(updateInfo => {
         hasNewVersion = !!updateInfo;
@@ -561,6 +575,61 @@ function bindEvents() {
     });
 
     $(document).on('change.pw', '#pw-api-source', function () { $('#pw-indep-settings').toggle($(this).val() === 'independent'); });
+
+    $(document).on('change.pw', '#pw-api-profile-select', function() {
+        const profileId = $(this).val();
+        uiStateCache.activeApiProfileId = profileId;
+        $('#pw-api-profile-delete').toggle(!!profileId);
+        $('#pw-api-profile-save').html(profileId ? '<i class="fa-solid fa-save"></i> 更新配置' : '<i class="fa-solid fa-save"></i> 保存为新配置');
+        if (profileId) {
+            const profile = apiProfilesCache.find(p => p.id === profileId);
+            if (profile) {
+                $('#pw-api-url').val(profile.url);
+                $('#pw-api-key').val(profile.key);
+                $('#pw-api-model-select').empty().append(`<option value="${profile.model}">${profile.model}</option>`).val(profile.model);
+            }
+        }
+        saveData();
+    });
+
+    $(document).on('click.pw', '#pw-api-profile-save', function() {
+        const url = $('#pw-api-url').val(), key = $('#pw-api-key').val(), model = $('#pw-api-model-select').val() || '';
+        const selectedId = $('#pw-api-profile-select').val();
+        if (selectedId) {
+            const profile = apiProfilesCache.find(p => p.id === selectedId);
+            if (profile) {
+                profile.url = url; profile.key = key; profile.model = model;
+                saveData(); toastr.success(`配置 "${profile.name}" 已更新`);
+            }
+        } else {
+            const name = prompt("请输入配置名称：", "");
+            if (!name || !name.trim()) return;
+            const id = 'prof_' + Date.now();
+            apiProfilesCache.push({ id, name: name.trim(), url, key, model });
+            uiStateCache.activeApiProfileId = id;
+            saveData();
+            $('#pw-api-profile-select').append(`<option value="${id}">${name.trim()}</option>`).val(id);
+            $('#pw-api-profile-delete').show();
+            $('#pw-api-profile-save').html('<i class="fa-solid fa-save"></i> 更新配置');
+            toastr.success(`配置 "${name.trim()}" 已保存`);
+        }
+    });
+
+    $(document).on('click.pw', '#pw-api-profile-delete', function() {
+        const selectedId = $('#pw-api-profile-select').val();
+        if (!selectedId) return;
+        const profile = apiProfilesCache.find(p => p.id === selectedId);
+        if (!profile || !confirm(`删除配置 "${profile.name}" 吗？`)) return;
+        apiProfilesCache = apiProfilesCache.filter(p => p.id !== selectedId);
+        uiStateCache.activeApiProfileId = '';
+        saveData();
+        $(`#pw-api-profile-select option[value="${selectedId}"]`).remove();
+        $('#pw-api-profile-select').val('');
+        $('#pw-api-profile-delete').hide();
+        $('#pw-api-profile-save').html('<i class="fa-solid fa-save"></i> 保存为新配置');
+        toastr.success("已删除");
+    });
+
     $(document).on('click.pw', '#pw-api-fetch', async function (e) {
         e.preventDefault(); const u = $('#pw-api-url').val().replace(/\/$/, ''), k = $('#pw-api-key').val(), $b = $(this).find('i').addClass('fa-spin');
         try { let d = null; for (const ep of[u.includes('v1')?`${u}/models`:`${u}/v1/models`, `${u}/models`]) { try { const r = await fetch(ep, { headers: { 'Authorization': `Bearer ${k}` } }); if (r.ok) { d = await r.json(); break; } } catch {} }

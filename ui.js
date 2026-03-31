@@ -13,7 +13,7 @@ export function getCreatorPopupHtml(params) {
     const { 
         headerTitle, currentName, activeData, config, 
         presetOptionsHtml, initialHint, updateUiHtml, 
-        chipsIcon, chipsDisplay, isNpc 
+        chipsIcon, chipsDisplay, isNpc, apiProfilesOptionsHtml 
     } = params;
 
     return `
@@ -192,6 +192,19 @@ export function getCreatorPopupHtml(params) {
             <div class="pw-card-section">
                 <div class="pw-row"><label>API 来源</label><select id="pw-api-source" class="pw-input" style="flex:1;"><option value="main" ${config.apiSource === 'main' ? 'selected' : ''}>主 API</option><option value="independent" ${config.apiSource === 'independent' ? 'selected' : ''}>独立 API</option></select></div>
                 <div id="pw-indep-settings" style="display:${config.apiSource === 'independent' ? 'flex' : 'none'}; flex-direction:column; gap:15px;">
+                    <div id="pw-api-profiles-bar" style="display:flex; flex-direction:column; gap:8px; padding-bottom:12px; border-bottom:1px dashed var(--pw-border); margin-bottom:4px;">
+                        <div class="pw-row">
+                            <label>配置</label>
+                            <select id="pw-api-profile-select" class="pw-input" style="flex:1;">
+                                <option value="">-- 新建配置 --</option>
+                                ${apiProfilesOptionsHtml}
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:5px; justify-content:flex-end;">
+                            <button id="pw-api-profile-save" class="pw-mini-btn"><i class="fa-solid fa-save"></i> 保存为新配置</button>
+                            <button id="pw-api-profile-delete" class="pw-mini-btn" style="border-color:var(--pw-danger); color:var(--pw-danger); display:none;"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
                     <div class="pw-row"><label>URL</label><input type="text" id="pw-api-url" class="pw-input" value="${config.indepApiUrl}" style="flex:1;" placeholder="http://.../v1"></div>
                     <div class="pw-row"><label>Key</label><input type="password" id="pw-api-key" class="pw-input" value="${config.indepApiKey}" style="flex:1;"></div>
                     <div class="pw-row"><label>Model</label>

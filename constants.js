@@ -18,6 +18,7 @@ export const STORAGE_KEY_UI_STATE = 'pw_ui_state_v4_preset';
 export const STORAGE_KEY_THEMES = 'pw_custom_themes_v1'; 
 export const STORAGE_KEY_DATA_USER = 'pw_data_user_v1'; 
 export const STORAGE_KEY_DATA_NPC = 'pw_data_npc_v1';   
+export const STORAGE_KEY_API_PROFILES = 'pw_api_profiles_v1';
 
 export const BUTTON_ID = 'pw_persona_tool_btn';
 export const HISTORY_PER_PAGE = 20;
